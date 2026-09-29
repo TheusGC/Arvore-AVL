@@ -1,0 +1,333 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct no {
+    int conteudo;
+    int altura;
+    struct no *esquerda, *direita;
+} No;
+
+typedef struct {
+    No *raiz;
+} BSB;
+
+/* Retorna a altura de um no. */
+int altura(No *raiz) {
+    if (raiz == NULL)
+        return 0;
+    return raiz->altura;
+}
+
+/* Atualiza a altura do no a partir das alturas dos filhos. */
+void atualizarAltura(No *raiz) {
+    int alturaEsquerda, alturaDireita;
+
+    if (raiz == NULL)
+        return;
+
+    alturaEsquerda = altura(raiz->esquerda);
+    alturaDireita = altura(raiz->direita);
+
+    raiz->altura = 1 + (alturaEsquerda > alturaDireita ? alturaEsquerda : alturaDireita);
+}
+
+/* Fator de balanceamento = altura da esquerda - altura da direita. */
+int fatorBalanceamento(No *raiz) {
+    if (raiz == NULL)
+        return 0;
+    return altura(raiz->esquerda) - altura(raiz->direita);
+}
+
+/* Rotacao simples a direita. */
+No *rotacaoDireita(No *raiz) {
+    No *novaRaiz = raiz->esquerda;
+    No *subarvore = novaRaiz->direita;
+
+    novaRaiz->direita = raiz;
+    raiz->esquerda = subarvore;
+
+    atualizarAltura(raiz);
+    atualizarAltura(novaRaiz);
+
+    return novaRaiz;
+}
+
+/* Rotacao simples a esquerda. */
+No *rotacaoEsquerda(No *raiz) {
+    No *novaRaiz = raiz->direita;
+    No *subarvore = novaRaiz->esquerda;
+
+    novaRaiz->esquerda = raiz;
+    raiz->direita = subarvore;
+
+    atualizarAltura(raiz);
+    atualizarAltura(novaRaiz);
+
+    return novaRaiz;
+}
+
+/* Rotacao dupla esquerda-direita. */
+No *rotacaoEsquerdaDireita(No *raiz) {
+    raiz->esquerda = rotacaoEsquerda(raiz->esquerda);
+    return rotacaoDireita(raiz);
+}
+
+/* Rotacao dupla direita-esquerda. */
+No *rotacaoDireitaEsquerda(No *raiz) {
+    raiz->direita = rotacaoDireita(raiz->direita);
+    return rotacaoEsquerda(raiz);
+}
+
+/* Rebalanceia um no depois de uma insercao ou remocao. */
+No *rebalancear(No *raiz) {
+    int fator;
+
+    if (raiz == NULL)
+        return NULL;
+
+    atualizarAltura(raiz);
+    fator = fatorBalanceamento(raiz);
+
+    if (fator > 1) {
+        /* Caso esquerda-esquerda. */
+        if (fatorBalanceamento(raiz->esquerda) >= 0)
+            return rotacaoDireita(raiz);
+
+        /* Caso esquerda-direita. */
+        return rotacaoEsquerdaDireita(raiz);
+    }
+
+    if (fator < -1) {
+        /* Caso direita-direita. */
+        if (fatorBalanceamento(raiz->direita) <= 0)
+            return rotacaoEsquerda(raiz);
+
+        /* Caso direita-esquerda. */
+        return rotacaoDireitaEsquerda(raiz);
+    }
+
+    return raiz;
+}
+
+No *inserir(No *raiz, int valor) {
+    if (raiz == NULL) {
+        No *novo = malloc(sizeof(No));
+
+        if (novo == NULL) {
+            printf("Erro ao alocar memoria.\n");
+            return NULL;
+        }
+
+        novo->conteudo = valor;
+        novo->altura = 1;
+        novo->esquerda = NULL;
+        novo->direita = NULL;
+        return novo;
+    }
+
+    if (valor < raiz->conteudo) {
+        raiz->esquerda = inserir(raiz->esquerda, valor);
+    } else if (valor > raiz->conteudo) {
+        raiz->direita = inserir(raiz->direita, valor);
+    } else {
+        printf("Valor repetido. Ignorado.\n");
+        return raiz;
+    }
+
+    return rebalancear(raiz);
+}
+
+No *buscar(No *raiz, int valor) {
+    if (raiz == NULL || raiz->conteudo == valor)
+        return raiz;
+
+    if (valor < raiz->conteudo)
+        return buscar(raiz->esquerda, valor);
+
+    return buscar(raiz->direita, valor);
+}
+
+No *menor(No *raiz) {
+    while (raiz != NULL && raiz->esquerda != NULL)
+        raiz = raiz->esquerda;
+    return raiz;
+}
+
+No *remover(No *raiz, int valor) {
+    No *temp;
+
+    if (raiz == NULL)
+        return NULL;
+
+    if (valor < raiz->conteudo) {
+        raiz->esquerda = remover(raiz->esquerda, valor);
+    } else if (valor > raiz->conteudo) {
+        raiz->direita = remover(raiz->direita, valor);
+    } else {
+        /* Caso 1: no folha. */
+        if (raiz->esquerda == NULL && raiz->direita == NULL) {
+            free(raiz);
+            return NULL;
+        }
+
+        /* Caso 2: apenas filho direito. */
+        if (raiz->esquerda == NULL) {
+            temp = raiz->direita;
+            free(raiz);
+            return temp;
+        }
+
+        /* Caso 2: apenas filho esquerdo. */
+        if (raiz->direita == NULL) {
+            temp = raiz->esquerda;
+            free(raiz);
+            return temp;
+        }
+
+        /* Caso 3: dois filhos - usa o sucessor em ordem. */
+        temp = menor(raiz->direita);
+        raiz->conteudo = temp->conteudo;
+        raiz->direita = remover(raiz->direita, temp->conteudo);
+    }
+
+    return rebalancear(raiz);
+}
+
+void preOrdem(No *raiz) {
+    if (raiz != NULL) {
+        printf("%d ", raiz->conteudo);
+        preOrdem(raiz->esquerda);
+        preOrdem(raiz->direita);
+    }
+}
+
+void emOrdem(No *raiz) {
+    if (raiz != NULL) {
+        emOrdem(raiz->esquerda);
+        printf("%d ", raiz->conteudo);
+        emOrdem(raiz->direita);
+    }
+}
+
+void posOrdem(No *raiz) {
+    if (raiz != NULL) {
+        posOrdem(raiz->esquerda);
+        posOrdem(raiz->direita);
+        printf("%d ", raiz->conteudo);
+    }
+}
+
+/* Exibe cada no com sua altura e seu fator de balanceamento. */
+void exibirBalanceamento(No *raiz) {
+    if (raiz != NULL) {
+        exibirBalanceamento(raiz->esquerda);
+        printf("No: %d | Altura: %d | Fator de balanceamento: %d\n",
+               raiz->conteudo, altura(raiz), fatorBalanceamento(raiz));
+        exibirBalanceamento(raiz->direita);
+    }
+}
+
+void liberar(No *raiz) {
+    if (raiz != NULL) {
+        liberar(raiz->esquerda);
+        liberar(raiz->direita);
+        free(raiz);
+    }
+}
+
+int main(void) {
+    BSB tree = {NULL};
+    int op, valor, sub;
+
+    do {
+        printf("\n1 - Inserir valor\n");
+        printf("2 - Buscar valor\n");
+        printf("3 - Remover valor\n");
+        printf("4 - Percorrer arvore\n");
+        printf("5 - Exibir altura e fator de balanceamento\n");
+        printf("0 - Sair\n");
+        printf("Opcao: ");
+
+        if (scanf("%d", &op) != 1) {
+            printf("Entrada invalida.\n");
+            liberar(tree.raiz);
+            return 1;
+        }
+
+        switch (op) {
+        case 1:
+            printf("Valor: ");
+            scanf("%d", &valor);
+            tree.raiz = inserir(tree.raiz, valor);
+            break;
+
+        case 2:
+            printf("Valor: ");
+            scanf("%d", &valor);
+
+            if (buscar(tree.raiz, valor) != NULL)
+                printf("Valor encontrado.\n");
+            else
+                printf("Valor nao encontrado.\n");
+            break;
+
+        case 3:
+            printf("Valor: ");
+            scanf("%d", &valor);
+
+            if (buscar(tree.raiz, valor) != NULL) {
+                tree.raiz = remover(tree.raiz, valor);
+                printf("Valor removido.\n");
+            } else {
+                printf("Valor nao encontrado.\n");
+            }
+            break;
+
+        case 4:
+            do {
+                printf("\n1 - Pre-ordem\n");
+                printf("2 - Em ordem\n");
+                printf("3 - Pos-ordem\n");
+                printf("0 - Voltar\n");
+                printf("Opcao: ");
+                scanf("%d", &sub);
+
+                switch (sub) {
+                case 1:
+                    preOrdem(tree.raiz);
+                    printf("\n");
+                    break;
+                case 2:
+                    emOrdem(tree.raiz);
+                    printf("\n");
+                    break;
+                case 3:
+                    posOrdem(tree.raiz);
+                    printf("\n");
+                    break;
+                }
+            } while (sub != 0);
+            break;
+
+        case 5:
+            if (tree.raiz == NULL) {
+                printf("Arvore vazia.\n");
+            } else {
+                printf("Altura da arvore: %d\n", altura(tree.raiz));
+                exibirBalanceamento(tree.raiz);
+            }
+            break;
+
+        case 0:
+            liberar(tree.raiz);
+            printf("Programa encerrado.\n");
+            break;
+
+        default:
+            printf("Opcao invalida.\n");
+        }
+
+    } while (op != 0);
+
+    return 0;
+}
